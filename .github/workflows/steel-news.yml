@@ -1,1 +1,42 @@
+name: Steel News Bot
 
+on:
+  schedule:
+    # Runs every 2 hours (UTC). Adjust the cron expression as needed.
+    # cron syntax: minute hour day month day-of-week
+    - cron: "0 */2 * * *"
+  workflow_dispatch: {}   # lets you also trigger it manually from the Actions tab
+
+# Needed so the workflow is allowed to commit the updated sent_links.json file back
+permissions:
+  contents: write
+
+jobs:
+  check-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run steel news bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python steel_news_bot.py
+
+      - name: Commit updated state file
+        run: |
+          git config user.name "steel-news-bot"
+          git config user.email "actions@github.com"
+          git add sent_links.json
+          git diff --cached --quiet || git commit -m "update sent links"
+          git push
