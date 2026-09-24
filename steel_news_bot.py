@@ -97,7 +97,9 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 TELEGRAM_ADMIN_CHAT_ID = os.environ.get("TELEGRAM_ADMIN_CHAT_ID") or TELEGRAM_CHAT_ID
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip()
+if not GEMINI_MODEL or GEMINI_MODEL.startswith("gemini-2.5-"):
+    GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 TIMEZONE = ZoneInfo("Asia/Tehran")
 STATE_FILE = Path(__file__).parent / "sent_links.json"
