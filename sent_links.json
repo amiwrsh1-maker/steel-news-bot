@@ -1,7 +1,11 @@
 {
   "version": 3,
-  "sent_links": [],
-  "sent_ids": [],
+  "sent_links": [
+    "https://news.google.com/rss/articles/CBMirgFBVV95cUxNYnJaMGFGd0lPdXpnbUhzbXZFTXpjRHdtRk1JQlduRHJPY0ZodTU1dDNrMXZmdEppVVk4UHRYcDZkNmpKOGFlVWNheGw0RnAtMExIeUl3Q3dPWmY2RlNKNjRHMDJFYURRcENLck5YZ25ocENPVDNieE1QemxvbjE4RlNIWERJLVZGM3cydmhQX1pMaWZURGVFbk9UdkxtZXlyVXZnUU5UakJqOTJTelE?oc=5"
+  ],
+  "sent_ids": [
+    "20bf72d7d0978a5c86394979555fe3eac311df6fa3e5a4efb8902b9557a6b045"
+  ],
   "rejected_ids": [],
-  "last_run_at": null
+  "last_run_at": "2026-09-24T22:45:23.652930+03:30"
 }
