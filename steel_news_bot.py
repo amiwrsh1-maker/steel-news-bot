@@ -32,19 +32,16 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 ADMIN_CHAT_ID = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "").strip() or CHAT_ID
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip() or "gemini-2.5-flash-lite"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip() or "gemini-3.5-flash-lite"
 
 MAX_ITEMS_PER_RUN = 8
 HTTP_TIMEOUT = 12
 FEED_FETCH_WORKERS = 8
 TELEGRAM_DELAY = 1.2
 
-# gemini-2.5-flash-lite's free tier is 1,000 requests/day (Google's published
-# limit as of writing). This cron runs every 5 minutes (~288 runs/day) and
-# makes at most 1 Gemini call per run, so normal usage is ~288/day — well
-# under the cap. This budget is a hard safety net for abnormal days (e.g.
-# repeated fallback-model attempts): once hit, the bot stops calling Gemini
-# for the rest of the Iran calendar day instead of burning through 429s.
+# Safety budget for Gemini calls. The bot normally makes one batch call per
+# run. Once this budget is reached, classification pauses until the next
+# Iran calendar day.
 DAILY_GEMINI_CALL_BUDGET = 900
 
 IRAN = [
@@ -155,16 +152,13 @@ def pub_dt(entry: Any) -> Optional[datetime]:
     return None
 
 
-LOOKBACK_HOURS = 30  # generous rolling window — still "only recent news",
-                      # but not brittle to an exact-calendar-date match
-
-
-def is_recent(entry: Any) -> bool:
+def is_today(entry: Any) -> bool:
+    """Accept only items whose publication date is today in Iran time."""
     d = pub_dt(entry)
     if d is None:
         return False
-    age = datetime.now(TZ) - d
-    return -timedelta(minutes=10) <= age <= timedelta(hours=LOOKBACK_HOURS)
+    now = datetime.now(TZ)
+    return d.date() == now.date() and d <= now + timedelta(minutes=10)
 
 
 def relevant_candidate(text: str) -> bool:
@@ -194,7 +188,7 @@ def _fetch_feed(session: requests.Session, url: str,
             raw += 1
             x = item(e)
             if not x["title"] or not x["link"]: continue
-            if not is_recent(e): continue
+            if not is_today(e): continue
             date_pass += 1
             if not relevant_candidate(x["title"] + " " + x["summary"]): continue
             if x["link"] in seen_links or x["uid"] in seen_ids or x["uid"] in seen_rejected: continue
@@ -220,7 +214,7 @@ def collect(s: dict[str, Any]) -> list[dict[str, Any]]:
         for fut in as_completed(futures):
             local, raw, date_pass = fut.result()
             out.update(local); total_raw += raw; total_date_pass += date_pass
-    print(f"[info] feed funnel: {total_raw} raw entries -> {total_date_pass} within last {LOOKBACK_HOURS}h -> {len(out)} matched keywords & new")
+    print(f"[info] feed funnel: {total_raw} raw entries -> {total_date_pass} published today in Iran -> {len(out)} matched keywords & new")
     return sorted(out.values(), key=lambda x: x["published_at"] or datetime.min.replace(tzinfo=TZ))[:MAX_ITEMS_PER_RUN]
 
 
@@ -267,7 +261,11 @@ def analyze_batch(items: list[dict[str, Any]]) -> tuple[dict[int, dict[str, Any]
     if not GEMINI_KEY: raise RuntimeError("GEMINI_API_KEY is missing")
     if not items: return {}, 0
 
-    fallback_models = ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.0-flash"]
+    fallback_models = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.8-flash",
+        "gemini-3.6-flash",
+    ]
     models_to_try = [GEMINI_MODEL] + [m for m in fallback_models if m != GEMINI_MODEL]
 
     payload = {"contents":[{"parts":[{"text":gemini_prompt_batch(items)}]}],"generationConfig":{"temperature":0.1,"responseMimeType":"application/json"}}
