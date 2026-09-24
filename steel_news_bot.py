@@ -86,13 +86,18 @@ STRONG = [
 
 
 def rss(query: str, domains: list[str], fa: bool) -> str:
-    q = f"({query}) ({' OR '.join('site:' + d for d in domains)})"
+    q = f"({query}) ({' OR '.join('site:' + d for d in domains)})" if domains else f"({query})"
     return "https://news.google.com/rss/search?q=" + quote_plus(q) + (
         "&hl=fa&gl=IR&ceid=IR:fa" if fa else "&hl=en-US&gl=US&ceid=US:en"
     )
 
 
-FEEDS = [rss(q, IRAN, True) for q in FA_QUERIES] + [rss(q, GLOBAL, False) for q in EN_QUERIES]
+# Broad queries: no site: restriction — chaining ~17 domains onto every
+# keyword query with OR produced compound queries Google News' search
+# backend was silently returning near-empty results for. hl/gl already
+# scope these to the right language/region; per-source coverage comes
+# from the simple single-domain feeds appended below instead.
+FEEDS = [rss(q, [], True) for q in FA_QUERIES] + [rss(q, [], False) for q in EN_QUERIES]
 for d in [
     "reuters.com", "worldsteel.org", "steelorbis.com", "fastmarkets.com", "argusmedia.com",
     "spglobal.com", "steelradar.com", "mining.com", "irna.ir", "isna.ir", "ilna.ir",
@@ -150,9 +155,16 @@ def pub_dt(entry: Any) -> Optional[datetime]:
     return None
 
 
-def is_today(entry: Any, today: date) -> bool:
+LOOKBACK_HOURS = 30  # generous rolling window — still "only recent news",
+                      # but not brittle to an exact-calendar-date match
+
+
+def is_recent(entry: Any) -> bool:
     d = pub_dt(entry)
-    return d is not None and d.date() == today
+    if d is None:
+        return False
+    age = datetime.now(TZ) - d
+    return -timedelta(minutes=10) <= age <= timedelta(hours=LOOKBACK_HOURS)
 
 
 def relevant_candidate(text: str) -> bool:
@@ -171,39 +183,44 @@ def item(entry: Any) -> dict[str, Any]:
     return {"title": title, "link": link, "summary": summary, "published_at": dt, "source": source, "uid": uid}
 
 
-def _fetch_feed(session: requests.Session, url: str, today: date,
-                 seen_links: set, seen_ids: set, seen_rejected: set) -> dict[str, dict[str, Any]]:
+def _fetch_feed(session: requests.Session, url: str,
+                 seen_links: set, seen_ids: set, seen_rejected: set) -> tuple[dict[str, dict[str, Any]], int, int]:
     local: dict[str, dict[str, Any]] = {}
+    raw = date_pass = 0
     try:
         r = session.get(url, timeout=HTTP_TIMEOUT); r.raise_for_status()
         feed = feedparser.parse(r.content)
         for e in feed.entries:
+            raw += 1
             x = item(e)
             if not x["title"] or not x["link"]: continue
-            if not is_today(e, today): continue
+            if not is_recent(e): continue
+            date_pass += 1
             if not relevant_candidate(x["title"] + " " + x["summary"]): continue
             if x["link"] in seen_links or x["uid"] in seen_ids or x["uid"] in seen_rejected: continue
             local[x["link"]] = x
     except Exception as e:
         print(f"[warn] feed error ({url[:70]}...): {e}", file=sys.stderr)
-    return local
+    return local, raw, date_pass
 
 
 def collect(s: dict[str, Any]) -> list[dict[str, Any]]:
-    today = datetime.now(TZ).date()
     seen_links = set(s.get("sent_links", [])) | set(s.get("rejected_ids", []))
     seen_ids = set(s.get("sent_ids", []))
     seen_rejected = set(s.get("rejected_ids", []))
     out: dict[str, dict[str, Any]] = {}
+    total_raw = total_date_pass = 0
     session = requests.Session()
     session.headers["User-Agent"] = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
     with ThreadPoolExecutor(max_workers=FEED_FETCH_WORKERS) as pool:
-        futures = [pool.submit(_fetch_feed, session, url, today, seen_links, seen_ids, seen_rejected) for url in FEEDS]
+        futures = [pool.submit(_fetch_feed, session, url, seen_links, seen_ids, seen_rejected) for url in FEEDS]
         for fut in as_completed(futures):
-            out.update(fut.result())
+            local, raw, date_pass = fut.result()
+            out.update(local); total_raw += raw; total_date_pass += date_pass
+    print(f"[info] feed funnel: {total_raw} raw entries -> {total_date_pass} within last {LOOKBACK_HOURS}h -> {len(out)} matched keywords & new")
     return sorted(out.values(), key=lambda x: x["published_at"] or datetime.min.replace(tzinfo=TZ))[:MAX_ITEMS_PER_RUN]
 
 
