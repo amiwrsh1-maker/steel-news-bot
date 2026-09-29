@@ -48,11 +48,7 @@ IRAN = [
     "irna.ir", "isna.ir", "ilna.ir", "mehrnews.com", "tasnimnews.com",
     "farsnews.ir", "khabaronline.ir", "donya-e-eqtesad.com", "eghtesadonline.com",
     "tejaratnews.com", "ecoiran.com", "boursepress.ir", "boursenews.ir",
-    "sena.ir", "ibena.ir", "ime.co.ir", "imidro.gov.ir", "ispa.ir",
-    "chilanonline.com", "fouladban.com", "maden24.ir", "madannews.ir",
-    "irasin.ir", "ahan-online.com", "ahanonline.com", "mihansanat.ir",
-    "metalonline.ir", "felezatkhavarmianeh.ir", "minews.ir", "miningandsteel.com",
-    "tgju.org", "boursemrooz.com", "sarmayeh.news", "eghtesadnews.com"
+    "sena.ir", "ibena.ir", "ime.co.ir", "imidro.gov.ir", "ispa.ir"
 ]
 GLOBAL = [
     "reuters.com", "bloomberg.com", "ft.com", "wsj.com", "cnbc.com", "apnews.com",
@@ -79,15 +75,10 @@ STRONG = [
     "فولاد", "steelmaking", "steel mill", "steelmaker", "steel price", "steel prices",
     "iron ore", "آهن اسفنجی", "direct reduced iron", "dri", "سنگ آهن", "سنگ‌آهن",
     "شمش", "billet", "بیلت", "slab", "اسلب", "میلگرد", "rebar", "تیرآهن",
-    "ورق فولادی", "ورق گرم", "ورق سرد", "ورق گالوانیزه", "ورق سیاه", "مقاطع فولادی",
-    "محصولات فولادی", "زنجیره فولاد", "نورد", "hrc", "crc", "گندله", "pellet", "کنسانتره",
+    "ورق فولادی", "ورق گرم", "hrc", "crc", "گندله", "pellet", "کنسانتره",
     "concentrate", "قراضه", "scrap", "کک", "coke", "blast furnace",
     "electric arc furnace", "بورس کالا", "صادرات فولاد", "واردات فولاد",
-    "تولید فولاد", "بازار فولاد", "فولاد مبارکه", "فولاد خوزستان", "ذوب آهن اصفهان",
-    "ذوب‌آهن اصفهان", "چادرملو", "گل گهر", "گل‌گهر", "فولاد کاوه", "فولاد هرمزگان",
-    "فولاد سنگان", "فولاد خراسان", "آهن و فولاد", "تختال", "اسلب", "میلگرد کلاف",
-    "قیمت پایه", "عرضه محصولات فولادی", "معاملات فولاد", "قیمت آهن", "قیمت ورق",
-    "قیمت شمش", "قیمت میلگرد", "طلا", "سکه", "نقره", "فلزات گرانبها", "gold", "silver"
+    "تولید فولاد", "بازار فولاد"
 ]
 
 
@@ -98,22 +89,65 @@ def rss(query: str, domains: list[str], fa: bool) -> str:
     )
 
 
-# Broad queries: no site: restriction — chaining ~17 domains onto every
-# keyword query with OR produced compound queries Google News' search
-# backend was silently returning near-empty results for. hl/gl already
-# scope these to the right language/region; per-source coverage comes
-# from the simple single-domain feeds appended below instead.
-FEEDS = [rss(q, [], True) for q in FA_QUERIES] + [rss(q, [], False) for q in EN_QUERIES]
-for d in [
-    "reuters.com", "worldsteel.org", "steelorbis.com", "fastmarkets.com", "argusmedia.com",
-    "spglobal.com", "steelradar.com", "mining.com", "irna.ir", "isna.ir", "ilna.ir",
-    "donya-e-eqtesad.com", "ecoiran.com", "tejaratnews.com", "ime.co.ir", "imidro.gov.ir",
-    "chilanonline.com", "fouladban.com", "maden24.ir", "madannews.ir", "irasin.ir",
-    "ahan-online.com", "mihansanat.ir", "metalonline.ir", "felezatkhavarmianeh.ir",
-    "minews.ir", "tgju.org", "boursemrooz.com", "sarmayeh.news", "eghtesadnews.com",
-    "boursepress.ir", "boursenews.ir", "sena.ir", "ibena.ir"
-]:
-    FEEDS.append(rss("steel OR فولاد OR iron ore OR آهن", [d], d in IRAN))
+# Iran-focused feeds: keep the source layer domestic. The previous unrestricted
+# Google News queries could surface foreign publishers even when the query was
+# Persian. Each query below is explicitly restricted to Iranian sources.
+IRAN_STEEL_DOMAINS = [
+    # General Iranian news / economy
+    "irna.ir", "isna.ir", "ilna.ir", "mehrnews.com", "tasnimnews.com",
+    "farsnews.ir", "khabaronline.ir", "donya-e-eqtesad.com",
+    "eghtesadonline.com", "tejaratnews.com", "ecoiran.com",
+    # Capital markets / commodities / official market sources
+    "boursepress.ir", "boursenews.ir", "sena.ir", "ibena.ir",
+    "ime.co.ir", "imidro.gov.ir",
+    # Iranian steel / mining specialist media
+    "chilanonline.com", "fouladban.com", "madan24.com", "madanbidar.ir",
+    "irasin.ir", "ispa.ir", "metalonline.ir", "steeliran.org",
+    # Gold / precious metals / market data
+    "tgju.org", "mesghal.com"
+]
+
+# Use several focused searches per domestic source group. This avoids the
+# previous broad Persian feeds that were free to return foreign publishers.
+IRAN_QUERIES = [
+    "فولاد OR آهن OR شمش OR میلگرد OR ورق فولادی OR آهن اسفنجی OR گندله OR کنسانتره",
+    "قیمت فولاد OR قیمت آهن OR قیمت میلگرد OR قیمت شمش OR قیمت ورق",
+    "صادرات فولاد OR واردات فولاد OR بورس کالا فولاد OR عرضه فولاد",
+    "تولید فولاد OR کارخانه فولاد OR شرکت فولادی OR زنجیره فولاد",
+    "سنگ آهن OR آهن اسفنجی OR گندله OR کنسانتره OR قراضه OR نورد",
+    "طلا OR نقره OR فلزات گرانبها OR سکه"
+]
+
+STRONG = [
+    "فولاد", "steelmaking", "steel mill", "steelmaker", "steel price", "steel prices",
+    "iron ore", "آهن اسفنجی", "direct reduced iron", "dri", "سنگ آهن", "سنگ‌آهن",
+    "شمش", "billet", "بیلت", "slab", "اسلب", "میلگرد", "rebar", "تیرآهن",
+    "ورق فولادی", "ورق گرم", "ورق سرد", "گالوانیزه", "hrc", "crc", "گندله",
+    "pellet", "کنسانتره", "concentrate", "قراضه", "scrap", "کک", "coke",
+    "blast furnace", "electric arc furnace", "بورس کالا", "صادرات فولاد",
+    "واردات فولاد", "تولید فولاد", "بازار فولاد", "قیمت پایه", "عرضه", "معاملات",
+    "فولاد مبارکه", "فولاد خوزستان", "ذوب آهن", "ذوب‌آهن", "فولاد هرمزگان",
+    "فولاد خراسان", "چادرملو", "گل گهر", "گل‌گهر", "کچاد", "کگهر",
+    "طلا", "نقره", "فلزات گرانبها", "سکه"
+]
+
+
+def rss(query: str, domains: list[str], fa: bool) -> str:
+    q = f"({query}) ({' OR '.join('site:' + d for d in domains)})" if domains else f"({query})"
+    return "https://news.google.com/rss/search?q=" + quote_plus(q) + (
+        "&hl=fa&gl=IR&ceid=IR:fa" if fa else "&hl=en-US&gl=US&ceid=US:en"
+    )
+
+
+# IMPORTANT: no unrestricted Google News feed here. Every feed is explicitly
+# limited to Iranian domains, so foreign publishers cannot dominate collection.
+FEEDS = []
+for q in IRAN_QUERIES:
+    FEEDS.append(rss(q, IRAN_STEEL_DOMAINS, True))
+
+# Also create one simple steel query per specialist / official Iranian source.
+for d in IRAN_STEEL_DOMAINS:
+    FEEDS.append(rss("فولاد OR آهن OR بورس کالا OR معدن OR طلا", [d], True))
 
 
 def state_default() -> dict[str, Any]:
