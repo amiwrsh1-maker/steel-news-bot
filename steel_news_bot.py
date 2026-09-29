@@ -97,57 +97,40 @@ IRAN_STEEL_DOMAINS = [
     "irna.ir", "isna.ir", "ilna.ir", "mehrnews.com", "tasnimnews.com",
     "farsnews.ir", "khabaronline.ir", "donya-e-eqtesad.com",
     "eghtesadonline.com", "tejaratnews.com", "ecoiran.com",
-    # Capital markets / commodities / official market sources
+    # Markets / official sources
     "boursepress.ir", "boursenews.ir", "sena.ir", "ibena.ir",
-    "ime.co.ir", "imidro.gov.ir",
+    "ime.co.ir", "imidro.gov.ir", "tgju.org",
     # Iranian steel / mining specialist media
-    "chilanonline.com", "fouladban.com", "madan24.com", "madanbidar.ir",
+    "chilanonline.com", "fouladban.com", "madan24.ir", "madanbidar.ir",
     "irasin.ir", "ispa.ir", "metalonline.ir", "steeliran.org",
-    # Gold / precious metals / market data
-    "tgju.org", "mesghal.com"
+    "m-metals.ir", "me-metals.ir", "ahanonline.com", "ahaninfo.ir"
 ]
 
-# Use several focused searches per domestic source group. This avoids the
-# previous broad Persian feeds that were free to return foreign publishers.
+# IMPORTANT:
+# We deliberately do NOT use a 24h/48h window as the definition of "today".
+# Google News is queried broadly enough to discover current articles, and the
+# exact publication date is checked later against Asia/Tehran. This prevents
+# the old keyword gate from deleting relevant articles before Gemini sees them.
 IRAN_QUERIES = [
-    "فولاد OR آهن OR شمش OR میلگرد OR ورق فولادی OR آهن اسفنجی OR گندله OR کنسانتره",
-    "قیمت فولاد OR قیمت آهن OR قیمت میلگرد OR قیمت شمش OR قیمت ورق",
-    "صادرات فولاد OR واردات فولاد OR بورس کالا فولاد OR عرضه فولاد",
+    "فولاد OR آهن OR میلگرد OR تیرآهن OR ورق فولادی",
+    "شمش OR بیلت OR اسلب OR نورد OR محصولات فولادی",
+    "آهن اسفنجی OR سنگ آهن OR گندله OR کنسانتره OR قراضه",
+    "بورس کالا OR معاملات فولاد OR عرضه فولاد OR تقاضای فولاد",
+    "قیمت فولاد OR قیمت آهن OR قیمت میلگرد OR قیمت ورق OR قیمت شمش",
+    "صادرات فولاد OR واردات فولاد OR تجارت فولاد OR بازار فولاد",
     "تولید فولاد OR کارخانه فولاد OR شرکت فولادی OR زنجیره فولاد",
-    "سنگ آهن OR آهن اسفنجی OR گندله OR کنسانتره OR قراضه OR نورد",
-    "طلا OR نقره OR فلزات گرانبها OR سکه"
+    "فولاد مبارکه OR فولاد خوزستان OR ذوب آهن OR فولاد هرمزگان OR فولاد خراسان",
+    "چادرملو OR گل گهر OR گهرزمین OR ایمیدرو OR سنگ آهن",
+    "بورس کالا فولاد OR آهن اسفنجی بورس کالا OR شمش بورس کالا OR میلگرد بورس کالا"
 ]
 
-STRONG = [
-    "فولاد", "steelmaking", "steel mill", "steelmaker", "steel price", "steel prices",
-    "iron ore", "آهن اسفنجی", "direct reduced iron", "dri", "سنگ آهن", "سنگ‌آهن",
-    "شمش", "billet", "بیلت", "slab", "اسلب", "میلگرد", "rebar", "تیرآهن",
-    "ورق فولادی", "ورق گرم", "ورق سرد", "گالوانیزه", "hrc", "crc", "گندله",
-    "pellet", "کنسانتره", "concentrate", "قراضه", "scrap", "کک", "coke",
-    "blast furnace", "electric arc furnace", "بورس کالا", "صادرات فولاد",
-    "واردات فولاد", "تولید فولاد", "بازار فولاد", "قیمت پایه", "عرضه", "معاملات",
-    "فولاد مبارکه", "فولاد خوزستان", "ذوب آهن", "ذوب‌آهن", "فولاد هرمزگان",
-    "فولاد خراسان", "چادرملو", "گل گهر", "گل‌گهر", "کچاد", "کگهر",
-    "طلا", "نقره", "فلزات گرانبها", "سکه"
-]
-
-
-def rss(query: str, domains: list[str], fa: bool) -> str:
-    q = f"({query}) ({' OR '.join('site:' + d for d in domains)})" if domains else f"({query})"
-    return "https://news.google.com/rss/search?q=" + quote_plus(q) + (
-        "&hl=fa&gl=IR&ceid=IR:fa" if fa else "&hl=en-US&gl=US&ceid=US:en"
-    )
-
-
-# IMPORTANT: no unrestricted Google News feed here. Every feed is explicitly
-# limited to Iranian domains, so foreign publishers cannot dominate collection.
-FEEDS = []
-for q in IRAN_QUERIES:
-    FEEDS.append(rss(q, IRAN_STEEL_DOMAINS, True))
-
-# Also create one simple steel query per specialist / official Iranian source.
-for d in IRAN_STEEL_DOMAINS:
-    FEEDS.append(rss("فولاد OR آهن OR بورس کالا OR معدن OR طلا", [d], True))
+# One Google News RSS per (domestic source, focused topic). This is intentionally
+# more granular than the previous 33 broad feeds: a broad multi-domain RSS can
+# omit fresh articles from smaller Iranian publishers.
+FEEDS: list[tuple[str, str]] = []
+for domain in IRAN_STEEL_DOMAINS:
+    for query in IRAN_QUERIES:
+        FEEDS.append((domain, rss(query, [domain], True)))
 
 
 def state_default() -> dict[str, Any]:
@@ -199,18 +182,32 @@ def pub_dt(entry: Any) -> Optional[datetime]:
     return None
 
 
-def is_today(entry: Any) -> bool:
-    """Accept only items whose publication date is today in Iran time."""
+def is_recent(entry: Any, hours: int = 48) -> bool:
+    """Collection gate: keep a safety window around today's Iran date.
+
+    Google News can expose a publisher timestamp near a calendar boundary,
+    so collection is intentionally wider than the final Telegram gate.
+    """
     d = pub_dt(entry)
     if d is None:
         return False
     now = datetime.now(TZ)
-    return d.date() == now.date() and d <= now + timedelta(minutes=10)
+    return now - timedelta(hours=hours) <= d <= now + timedelta(minutes=15)
+
+
+def is_today_entry(x: dict[str, Any]) -> bool:
+    d = x.get("published_at")
+    if not isinstance(d, datetime):
+        return False
+    return d.astimezone(TZ).date() == datetime.now(TZ).date() and d <= datetime.now(TZ) + timedelta(minutes=15)
 
 
 def relevant_candidate(text: str) -> bool:
-    t = norm(text)
-    return any(norm(x) in t for x in STRONG)
+    # Deliberately permissive. Do NOT use a keyword gate here: it caused the
+    # exact failure seen in production (today's internal articles were removed
+    # before Gemini could judge their meaning). The source-domain gate + Gemini
+    # semantic classifier are the real relevance controls.
+    return True
 
 
 def item(entry: Any) -> dict[str, Any]:
@@ -220,14 +217,21 @@ def item(entry: Any) -> dict[str, Any]:
     dt = pub_dt(entry)
     src = entry.get("source")
     source = src.get("title", "") if isinstance(src, dict) else ""
+    if not source:
+        try:
+            from urllib.parse import urlparse
+            source = urlparse(link).netloc.replace("www.", "")
+        except Exception:
+            source = ""
     uid = hashlib.sha256(f"{link}|{norm(title)}|{dt.isoformat() if dt else ''}".encode()).hexdigest()
     return {"title": title, "link": link, "summary": summary, "published_at": dt, "source": source, "uid": uid}
 
 
-def _fetch_feed(session: requests.Session, url: str,
+def _fetch_feed(session: requests.Session, feed_info: tuple[str, str],
                  seen_links: set, seen_ids: set, seen_rejected: set) -> tuple[dict[str, dict[str, Any]], int, int]:
     local: dict[str, dict[str, Any]] = {}
     raw = date_pass = 0
+    domain, url = feed_info
     try:
         r = session.get(url, timeout=HTTP_TIMEOUT); r.raise_for_status()
         feed = feedparser.parse(r.content)
@@ -235,9 +239,11 @@ def _fetch_feed(session: requests.Session, url: str,
             raw += 1
             x = item(e)
             if not x["title"] or not x["link"]: continue
-            if not is_today(e): continue
+            if not is_recent(e): continue
             date_pass += 1
-            if not relevant_candidate(x["title"] + " " + x["summary"]): continue
+            # No keyword prefilter here. A current Iranian article may discuss
+            # a steel-market event without using one of our exact keywords in
+            # the title/Google News snippet. Gemini must see it before we reject it.
             if x["link"] in seen_links or x["uid"] in seen_ids or x["uid"] in seen_rejected: continue
             local[x["link"]] = x
     except Exception as e:
@@ -257,23 +263,33 @@ def collect(s: dict[str, Any]) -> list[dict[str, Any]]:
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
     with ThreadPoolExecutor(max_workers=FEED_FETCH_WORKERS) as pool:
-        futures = [pool.submit(_fetch_feed, session, url, seen_links, seen_ids, seen_rejected) for url in FEEDS]
+        futures = [pool.submit(_fetch_feed, session, feed_info, seen_links, seen_ids, seen_rejected) for feed_info in FEEDS]
         for fut in as_completed(futures):
             local, raw, date_pass = fut.result()
             out.update(local); total_raw += raw; total_date_pass += date_pass
-    print(f"[info] feed funnel: {total_raw} raw entries -> {total_date_pass} published today in Iran -> {len(out)} matched keywords & new")
-    return sorted(out.values(), key=lambda x: x["published_at"] or datetime.min.replace(tzinfo=TZ))[:MAX_ITEMS_PER_RUN]
+    values = sorted(out.values(), key=lambda x: x["published_at"] or datetime.min.replace(tzinfo=TZ), reverse=True)
+    today_values = [x for x in values if is_today_entry(x)]
+    print(f"[info] feed funnel: {total_raw} raw entries -> {total_date_pass} recent (48h) -> {len(values)} new domestic articles")
+    print(f"[info] final date gate: {len(today_values)} published today in Iran")
+    # Always expose a small sample of the discovery layer. This makes RSS/date
+    # problems diagnosable from the GitHub log instead of requiring another code change.
+    for x in values[:8]:
+        print(f"[debug] {x['published_at']} | {x['source']} | {x['title']}")
+    return today_values[:MAX_ITEMS_PER_RUN]
 
 
 def gemini_prompt_batch(items: list[dict[str, Any]]) -> str:
     numbered = "\n\n".join(
-        f'{i}. عنوان: {x["title"]}\nمتن RSS: {x["summary"]}\nمنبع: {x["source"]}'
+        f'{i}. عنوان: {x["title"]}\nتاریخ انتشار به وقت ایران: {x["published_at"]}\nمتن RSS: {x["summary"]}\nمنبع: {x["source"]}'
         for i, x in enumerate(items, start=1)
     )
     return f'''تو ویراستار ارشد اخبار آهن و فولاد هستی. برای هر یک از خبرهای زیر یک آبجکت JSON بساز.
 
-اگر خبر واقعاً درباره صنعت آهن و فولاد، سنگ‌آهن، مواد اولیه، تولید، قیمت، بازار، تجارت، صادرات/واردات، شرکت‌های فولادی یا سیاست مستقیم این صنعت نیست، relevant=false.
-محتوای تبلیغاتی/آموزشی/غیرخبری هم relevant=false.
+اگر خبر واقعاً درباره صنعت آهن و فولاد ایران یا زنجیره مستقیم آن (سنگ‌آهن، کنسانتره، گندله، آهن اسفنجی، شمش، اسلب، میلگرد، تیرآهن، ورق، قراضه، کک، تولید، قیمت، بورس کالا، معاملات، صادرات/واردات، انرژی مؤثر بر فولاد، یا شرکت‌های فولادی/معدنی ایران) نیست، relevant=false.
+خبر عمومی اقتصاد، ارز، طلا، سیاست، انرژی یا بازار جهانی فقط وقتی relevant=true است که در متن، اثر مستقیم و مشخص بر فولاد/زنجیره فولاد ایران داشته باشد.
+محتوای تبلیغاتی، آموزشی، استخدامی، تکراری یا صرفاً عمومی relevant=false.
+همه خبرهای ورودی از نظر زمان قبلاً برای «امروز به وقت ایران» فیلتر شده‌اند؛ فقط درباره ارتباط معنایی خبر تصمیم بگیر و خبر را صرفاً به خاطر تفاوت واژه‌ها رد نکن.
+اگر فقط عنوان مرتبط است ولی متن RSS ارتباط واقعی را تأیید نمی‌کند، relevant=false.
 هیچ واقعیتی خارج از متن اختراع نکن. فارسی بنویس.
 
 فقط یک آرایه JSON برگردان (بدون Markdown)، یک آبجکت برای هر خبر، به همین ترتیب شماره‌گذاری:
@@ -411,6 +427,8 @@ def main() -> int:
 
     sent = rejected = failed = 0
     for i, x in enumerate(candidates, start=1):
+        if not is_today_entry(x):
+            s["rejected_ids"].append(x["uid"]); rejected += 1; continue
         a = results.get(i)
         if not a:
             failed += 1; continue
