@@ -48,7 +48,11 @@ IRAN = [
     "irna.ir", "isna.ir", "ilna.ir", "mehrnews.com", "tasnimnews.com",
     "farsnews.ir", "khabaronline.ir", "donya-e-eqtesad.com", "eghtesadonline.com",
     "tejaratnews.com", "ecoiran.com", "boursepress.ir", "boursenews.ir",
-    "sena.ir", "ibena.ir", "ime.co.ir", "imidro.gov.ir", "ispa.ir"
+    "sena.ir", "ibena.ir", "ime.co.ir", "imidro.gov.ir", "ispa.ir",
+    "chilanonline.com", "fouladban.com", "maden24.ir", "madannews.ir",
+    "irasin.ir", "ahan-online.com", "ahanonline.com", "mihansanat.ir",
+    "metalonline.ir", "felezatkhavarmianeh.ir", "minews.ir", "miningandsteel.com",
+    "tgju.org", "boursemrooz.com", "sarmayeh.news", "eghtesadnews.com"
 ]
 GLOBAL = [
     "reuters.com", "bloomberg.com", "ft.com", "wsj.com", "cnbc.com", "apnews.com",
@@ -75,10 +79,15 @@ STRONG = [
     "فولاد", "steelmaking", "steel mill", "steelmaker", "steel price", "steel prices",
     "iron ore", "آهن اسفنجی", "direct reduced iron", "dri", "سنگ آهن", "سنگ‌آهن",
     "شمش", "billet", "بیلت", "slab", "اسلب", "میلگرد", "rebar", "تیرآهن",
-    "ورق فولادی", "ورق گرم", "hrc", "crc", "گندله", "pellet", "کنسانتره",
+    "ورق فولادی", "ورق گرم", "ورق سرد", "ورق گالوانیزه", "ورق سیاه", "مقاطع فولادی",
+    "محصولات فولادی", "زنجیره فولاد", "نورد", "hrc", "crc", "گندله", "pellet", "کنسانتره",
     "concentrate", "قراضه", "scrap", "کک", "coke", "blast furnace",
     "electric arc furnace", "بورس کالا", "صادرات فولاد", "واردات فولاد",
-    "تولید فولاد", "بازار فولاد"
+    "تولید فولاد", "بازار فولاد", "فولاد مبارکه", "فولاد خوزستان", "ذوب آهن اصفهان",
+    "ذوب‌آهن اصفهان", "چادرملو", "گل گهر", "گل‌گهر", "فولاد کاوه", "فولاد هرمزگان",
+    "فولاد سنگان", "فولاد خراسان", "آهن و فولاد", "تختال", "اسلب", "میلگرد کلاف",
+    "قیمت پایه", "عرضه محصولات فولادی", "معاملات فولاد", "قیمت آهن", "قیمت ورق",
+    "قیمت شمش", "قیمت میلگرد", "طلا", "سکه", "نقره", "فلزات گرانبها", "gold", "silver"
 ]
 
 
@@ -98,7 +107,11 @@ FEEDS = [rss(q, [], True) for q in FA_QUERIES] + [rss(q, [], False) for q in EN_
 for d in [
     "reuters.com", "worldsteel.org", "steelorbis.com", "fastmarkets.com", "argusmedia.com",
     "spglobal.com", "steelradar.com", "mining.com", "irna.ir", "isna.ir", "ilna.ir",
-    "donya-e-eqtesad.com", "ecoiran.com", "tejaratnews.com", "ime.co.ir", "imidro.gov.ir"
+    "donya-e-eqtesad.com", "ecoiran.com", "tejaratnews.com", "ime.co.ir", "imidro.gov.ir",
+    "chilanonline.com", "fouladban.com", "maden24.ir", "madannews.ir", "irasin.ir",
+    "ahan-online.com", "mihansanat.ir", "metalonline.ir", "felezatkhavarmianeh.ir",
+    "minews.ir", "tgju.org", "boursemrooz.com", "sarmayeh.news", "eghtesadnews.com",
+    "boursepress.ir", "boursenews.ir", "sena.ir", "ibena.ir"
 ]:
     FEEDS.append(rss("steel OR فولاد OR iron ore OR آهن", [d], d in IRAN))
 
