@@ -127,10 +127,24 @@ IRAN_QUERIES = [
 # One Google News RSS per (domestic source, focused topic). This is intentionally
 # more granular than the previous 33 broad feeds: a broad multi-domain RSS can
 # omit fresh articles from smaller Iranian publishers.
+def gregorian_today_bounds() -> tuple[str, str]:
+    # Google News date operators use Gregorian dates. The operators are only
+    # discovery hints; the final eligibility test below is strictly the
+    # publication calendar date in Asia/Tehran.
+    today = datetime.now(TZ).date()
+    tomorrow = today + timedelta(days=1)
+    return today.isoformat(), tomorrow.isoformat()
+
+
+def discovery_query(query: str) -> str:
+    today, tomorrow = gregorian_today_bounds()
+    return f"{query} after:{today} before:{tomorrow}"
+
+
 FEEDS: list[tuple[str, str]] = []
 for domain in IRAN_STEEL_DOMAINS:
     for query in IRAN_QUERIES:
-        FEEDS.append((domain, rss(query, [domain], True)))
+        FEEDS.append((domain, rss(discovery_query(query), [domain], True)))
 
 
 def state_default() -> dict[str, Any]:
@@ -182,19 +196,6 @@ def pub_dt(entry: Any) -> Optional[datetime]:
     return None
 
 
-def is_recent(entry: Any, hours: int = 48) -> bool:
-    """Collection gate: keep a safety window around today's Iran date.
-
-    Google News can expose a publisher timestamp near a calendar boundary,
-    so collection is intentionally wider than the final Telegram gate.
-    """
-    d = pub_dt(entry)
-    if d is None:
-        return False
-    now = datetime.now(TZ)
-    return now - timedelta(hours=hours) <= d <= now + timedelta(minutes=15)
-
-
 def is_today_entry(x: dict[str, Any]) -> bool:
     d = x.get("published_at")
     if not isinstance(d, datetime):
@@ -239,7 +240,7 @@ def _fetch_feed(session: requests.Session, feed_info: tuple[str, str],
             raw += 1
             x = item(e)
             if not x["title"] or not x["link"]: continue
-            if not is_recent(e): continue
+            if not is_today_entry(x): continue
             date_pass += 1
             # No keyword prefilter here. A current Iranian article may discuss
             # a steel-market event without using one of our exact keywords in
@@ -268,14 +269,13 @@ def collect(s: dict[str, Any]) -> list[dict[str, Any]]:
             local, raw, date_pass = fut.result()
             out.update(local); total_raw += raw; total_date_pass += date_pass
     values = sorted(out.values(), key=lambda x: x["published_at"] or datetime.min.replace(tzinfo=TZ), reverse=True)
-    today_values = [x for x in values if is_today_entry(x)]
-    print(f"[info] feed funnel: {total_raw} raw entries -> {total_date_pass} recent (48h) -> {len(values)} new domestic articles")
-    print(f"[info] final date gate: {len(today_values)} published today in Iran")
+    print(f"[info] feed funnel: {total_raw} raw entries -> {total_date_pass} published today in Iran -> {len(values)} new domestic articles")
+    print(f"[info] strict today gate: {len(values)} published today in Iran")
     # Always expose a small sample of the discovery layer. This makes RSS/date
     # problems diagnosable from the GitHub log instead of requiring another code change.
     for x in values[:8]:
         print(f"[debug] {x['published_at']} | {x['source']} | {x['title']}")
-    return today_values[:MAX_ITEMS_PER_RUN]
+    return values[:MAX_ITEMS_PER_RUN]
 
 
 def gemini_prompt_batch(items: list[dict[str, Any]]) -> str:
